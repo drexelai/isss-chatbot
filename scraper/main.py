@@ -9,62 +9,66 @@ FAQ_URLS = [
     "https://drexel.edu/undergrad/apply/freshmen-instructions/faq/"
 ]
 
+# * This is a counter for number of resulted yaml file(s).
+# ! Also prevent duplication as will be added to file name
+count = 0
+
 if __name__ == "__main__":
     for FAQ_URL in FAQ_URLS:
         response = requests.get(FAQ_URL)
         soup = BeautifulSoup(response.text, "html.parser")
-        file_name = (soup.title.string.rstrip().lstrip())
+        # file_name = (soup.title.string.rstrip().lstrip())
 
-        with open(str(uuid.uuid4()) + ".yaml", "w+") as f:
-            # * Begin getting categories
-            f.write('categories:\n')
-            __categories = soup.findAll('h2')
-            for cat in __categories:
-                # ! Exclude <h2 id="site-title">
-                if cat.find(id='bodytag_2_hlSiteName'):
-                    continue
-                f.write("- " + cat.string + "\n")
+        # ! OK so after some investigation on how ChatterBot works, I realize that 
+        # ! each category (or entity) should be in seperate files
+        # ! for better training and managing
 
-            # * Begin getting conversations
-            f.write('conversations:\n')
-            __conversations = soup.findAll('h3')
+        # * There's only one article tag in page so findAll is unecessary
+        __article = soup.find('article') 
 
-            __article = soup.find('article')
-            __article_children = __article.children
-            # __article_children = list(filter(lambda child: (child.string != None ), __article_children))
-            '''
-            # ! Begin going down the tree:
-            # * Ignore all h2 (already as categories)
-            # * If see h3 -> create new question
-            # * If see others (p and so on) -> add as answer
-            '''
-            answer = ""
-            started = False # ! To remove any warning before Q&A
-            for art in __article_children:
-                if art.name == "h2":
-                    # print(art)
-                    continue
-                elif art.name == "h3":
-                    started = True
-                    # print(art)
-                    if answer != "":
-                        f.write("  - " + answer.replace(':', "-") + "\n")
-                    answer = ""
-                    f.write("- - " + art.string.replace(':', "-") + "\n")
-                elif art.name == "p" and started:
-                    try:
-                        for content in art.contents:
-                            answer += str(content).rstrip(']').lstrip('[').rstrip('"').rstrip("'").lstrip('"').lstrip("'").rstrip().lstrip()
-                        # print((''.join(str(art.contents))))
-                        # f.write("  - " + ''.join(str(art.contents)).rstrip(']').lstrip('[').rstrip('"').rstrip("'").lstrip('"').lstrip("'") + "\n")
-                    except:
-                        pass
-            
-            # ! Just to make sure everything is printed out
-            if answer != "":
-                f.write("  - " + answer.replace(':', "-"))
-            # print(__article)
-            # for con in __conversations:
-            #     print(con)
+        # * Get all tags that is inside <article> which contains all Q&A
+        __article_children = __article.children
 
-        # print(soup)
+        # ! Begin going down the tree:
+        # * On each <h2> which is category, create a new file
+        # * If see h3 -> create new question
+        # * If see others (p and so on) -> add as answer
+        # ! Preserving <a> tag in answer has no harm in training process
+
+        tempAns = ""
+        questionStarted = False # ! To remove any warning before Q&A
+        file = None
+        for art in __article_children:
+            if art.name == "h2": # * Category
+                if file != None:
+                    # ! Just to make sure everything is printed out
+                    if tempAns != "":
+                        file.write("  - " + tempAns.replace(':', "-"))
+                        tempAns = ""
+                    file.close()
+                    file = None
+                count += 1
+                file = open(art.string.rstrip().lstrip() + " - " + str(count) + ".yaml", "w+")
+                file.write('categories:\n')
+                file.write("- " + art.string + "\n")
+                file.write('conversations:\n')
+            elif art.name == "h3": # * Question
+                questionStarted = True
+                if tempAns != "":
+                    file.write("  - " + tempAns.replace(':', "-") + "\n") # ! Seems like having : broke yaml file (dirty fix)
+                    # questionStarted = False
+                tempAns = ""
+                file.write("- - " + art.string.replace(':', "-") + "\n")
+            elif art.name == "p" and questionStarted:
+                try:
+                    for content in art.contents:
+                        tempAns += str(content).rstrip(']').lstrip('[').rstrip('"').rstrip("'").lstrip('"').lstrip("'").rstrip().lstrip()
+                except:
+                    pass
+
+        # ! On last question of last category, answer is not inserted and file is not yet closed
+        if tempAns != "":
+            file.write("  - " + tempAns.replace(':', "-"))
+            tempAns = ""
+        file.close()
+        file = None
