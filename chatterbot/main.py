@@ -20,6 +20,7 @@ trainer.train(
     "../scraper/Financial Aid - 6.yaml",
     "../scraper/Student Life - 7.yaml",
     "../scraper/Drexel Co-op - 8.yaml",
+    "chatterbot.corpus.english"
 )
 
 # ! This get a great result
@@ -29,5 +30,5 @@ print(response)
 
 print("===========================================================")
 # ! This is not (so even slight modification in the question heavily affect the system)
-response = chatbot.get_response('How can I get scholarship?')
+response = chatbot.get_response('How was your day?')
 print(response)
